@@ -1,0 +1,22 @@
+#!/bin/bash
+set -x
+
+SERDIR=/home/nop/services
+APP=$1
+
+username=$(echo $APP | cut -d "_" -f 1)
+
+i="1"
+while [ ! -z "$(grep "command:" $SERDIR/$username/$APP/profile | cut -d "{" -f $i)" ]
+do
+	arg="$(grep "command:" $SERDIR/$username/$1/profile | cut -d "{" -f $i | grep "}" | sed "s/}[^}]*//g")"
+	if [ ! -z $arg ]; then
+		if [ -z $argstr ]; then
+			argstr="$arg"
+		else
+			argstr="${argstr},${arg}"
+		fi
+	fi
+	i=$[$i+1]
+done
+echo $argstr

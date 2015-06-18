@@ -1,8 +1,8 @@
 #/bin/bash
 set -x
 
-GITDIR=/home/nop/gits
-APPDIR=/home/nop/apps
+GITDIR=/home/nap/gits
+APPDIR=/home/nap/apps
 WORKDIR=/etc/systemd/system
 APP=$1
 REGISTRY="docker.iwanna.xyz:5000/hmonkey"

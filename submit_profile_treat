@@ -1,15 +1,17 @@
 #!/bin/bash
 set -x
 
-GITDIR=/home/nap/gits
-APPDIR=/home/nap/apps
-WORKDIR=/etc/systemd/system
 APP=$1
+username=$(echo $APP | cut -d "_" -f 1)
 
-touch $APPDIR/$APP/Dockerfile
-sudo chmod o+w $APPDIR/$APP/Dockerfile
-touch $APPDIR/$APP/run
-sudo chmod o+w $APPDIR/$APP/run
+USERAPPDIR=/home/nop/apps/$username/$APP
+NAPDIR=/home/nop/nap
+WORKDIR=/etc/systemd/system
+
+touch $USERAPPDIR/Dockerfile
+sudo chmod o+w $USERAPPDIR/Dockerfile
+touch $USERAPPDIR/run
+sudo chmod o+w $USERAPPDIR/run
 
 #look for memory limit and others
 #read settings and command in profile
@@ -22,20 +24,17 @@ while read line; do
 			MEMORY=$(echo $line | awk '{ print $2 }')
 			DOCKER_OPTS="-m $MEMORY"
 		;;
-		scale:)
-			INSTANCES=$(echo $line | awk '{ print $2 }')
-		;;
 		command:)
-			echo $value > $APPDIR/$APP/run
+			echo $value > $USERAPPDIR/run
 		;;
 		*)
 			echo "other settings"
 	esac
-done < $APPDIR/$APP/profile
+done < $USERAPPDIR/profile
 
 #dockerfile for app
 
-cat > $APPDIR/$APP/Dockerfile <<EOF
+cat > $USERAPPDIR/Dockerfile <<EOF
 FROM docker.iwanna.xyz:5000/hmonkey/maven
 MAINTAINER hmonkey <5681713@qq.com>
 
@@ -45,4 +44,4 @@ WORKDIR /app
 ENTRYPOINT ["sh", "run"]
 EOF
 
-/home/nap/nap/dockerfile_treat $APP $INSTANCES "${DOCKER_OPTS}"
+$NAPDIR/submit_dockerfile_treat $APP "${DOCKER_OPTS}"

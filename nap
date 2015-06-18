@@ -1,73 +1,98 @@
 #!/bin/bash
 set -x
+USERAPPDIR=/home/nop/apps
+NAPDIR=/home/nop/nap
+SERDIR=/home/nop/services
 args=$*
-APP="$(echo $2 | sed "s/'//g")"
+case $1 in
+	#something I did before and will be used after
+	git-receive-pack)
+		shift 1
+		$NAPDIR/git_push_treat $args
+	;;
 
-#apps in /home/nop/apps and git repository in /home/nop/gits
-[ -d /home/nop/gits ] || (mkdir /home/nop/gits)
-[ -d /home/nop/apps ] || (mkdir /home/nop/apps)
-GITDIR=/home/nop/gits
-APPDIR=/home/nop/apps
+	#submit an app and not deploy it
+	submit_app)
+		shift 1
+		$NAPDIR/submit_treat $*
+	;;
 
-WORKDIR=/etc/systemd/system
-NOPDIR=/home/nop/nop
-INSTANCES=1
+	#deploy 
+	deploy_app)
+		shift 1
+		$NAPDIR/deploy_treat $*	
+	;;
 
-sudo touch $WORKDIR/BUILD_${APP}.service
-BUILD_SERVICE="$WORKDIR/BUILD_${APP}.service"
-sudo chmod o+w $BUILD_SERVICE
+	#list services under this user
+	list_services)
+		username=$(echo $2 | cut -d "_" -f 1)
+		echo "$(ls $SERDIR/$username)" 
+	;;
 
+	#get the url of the service
+	get_service_url)
+		username=$(echo $2 | cut -d "_" -f 1)
+                appname=$(echo $2 | cut -d "_" -f 2)
+		echo $(etcdctl get /services/url/$username/$appname)
+	;;
 
-#judge if app git exist, if not git init or nothing
-[ -d $GITDIR/$APP ] || (mkdir $GITDIR/$APP && git init --bare $GITDIR/$APP > /dev/null)
+	#get instance number of the service
+	get_instances_num)
+		fleetctl list-units | grep "\<${2}" | wc -l
+	;;
 
-git-shell -c "$1 'gits/$APP'"
+	#list instances of a service
+	list_instances)
+		fleetctl list-units | grep "\<$2"
+	;;
 
-#judge if app exist, if not clone, or how?
-if [ -d $APPDIR/$APP ]; then
-	cd $APPDIR/$APP
-	update_new=$(git pull)
-	cd  
-	if [ "$update_new" = "Already up-to-date." ]; then
-		if [ "$(etcdctl get /services/coreos1/$APP)" ]; then
-			ipport_etcd=$(etcdctl get /services/coreos1/$APP)
-			exit 0
-		elif [ "$(etcdctl get /services/coreos2/$APP)" ]; then
-			ipport_etcd=$(etcdctl get /services/coreos2/$APP)
-                        exit 0
-		elif [ "$(etcdctl get /services/coreos3/$APP)" ]; then
-			ipport_etcd=$(etcdctl get /services/coreos3/$APP)
-                        exit 0
+	#get port of an instance
+	get_port)
+		username=$(echo $2 | cut -d "_" -f 1)
+                appname=$(echo $2 | cut -d "_" -f 2)
+		etcdctl get /services/port/$username/$appname
+	;;
+
+	#get the journal of an instance
+	get_journal)
+		fleetctl journal $2
+	;;
+
+	#stop an app
+	stop_app)
+		fleetctl stop $2
+	;;
+
+	#start an app
+	start_app)
+		fleetctl start $2
+	;;
+
+	#get the start command of an instance
+	cat_app)
+		username=$(echo $2 | cut -d "_" -f 1)
+		if [ -f $USERAPPDIR/$username/$2/profile ]; then
+			cat $USERAPPDIR/$username/$2/profile
 		else
-			sudo rm -r $APPDIR/$APP
-			mkdir $APPDIR/$APP
-			git clone $GITDIR/$APP $APPDIR/$APP
+			cat $USERAPPDIR/$username/$2/Dockerfile
 		fi
-	else
-		sudo rm -r $APPDIR/$APP
-		mkdir $ADDDIR/$APP
-		git clone $GITDIR/$APP $APPDIR/$APP
-	fi
-else
-	mkdir $APPDIR/$APP
-	git clone $GITDIR/$APP $APPDIR/$APP
-fi
+	;;
 
-if [ ! -f $APPDIR/$APP/Dockerfile ]; then
-	if [ -f $APPDIR/$APP/pom.xml ]; then
-		echo "maven app"
-		${NOPDIR}/maven_treat $APP
-	elif [ -f $APPDIR/$APP/mpi.xml ]; then
-		echo "mpi app"
-		${NOPDIR}/mpi_treat $APP
-	elif [ -f $APPDIR/$APP/profile ]; then
-		echo "profile app"
-		${NOPDIR}/profile_treat $APP
-	else
-		echo "some other kinds of projects"
-	fi
-else
-	echo "docker file app"
-	${NOPDIR}/dockerfile_treat $APP 1
-fi
+	#get the scheduled parameters in app profile
+	get_parameters)
+		shift 1
+		$NAPDIR/get_parameters_treat $*
+	;;
 
+	#start an common app
+	start_common)
+		shift 1
+		$NAPDIR/commonapp_treat $*
+	;;
+
+	#start a mpi service
+	start_mpi)
+		shift 1
+		$NAPDIR/mpiapp_treat $*
+	;;
+esac

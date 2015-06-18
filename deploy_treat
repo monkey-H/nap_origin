@@ -1,0 +1,31 @@
+#!/bin/bash
+set -x
+
+APP=$1
+URL=$2
+
+SERDIR=/home/nop/services
+
+username=$(echo $1 | cut -d "_" -f 1)
+appname=$(echo $1 | cut -d "_" -f 2)
+etcdctl set /services/url/$username/$appname $URL
+
+[ -d $SERDIR ] || (mkdir $SERDIR)
+[ -d $SERDIR/$username ] || (mkdir $SERDIR/$username)
+USERDIR=$SERDIR/$username
+
+if [ -d $USERDIR/$APP ]; then
+	cd $USERDIR/$APP
+	update_new=$(git pull)
+	cd 
+	if [ "$update_new" = "test Already up-to-date." ]; then
+		echo "neweast"
+	else
+		sudo rm -r $USERDIR/$APP
+		mkdir $USERDIR/$APP
+		git clone $URL $USERDIR/$APP
+	fi
+else
+	mkdir $USERDIR/$APP
+	git clone $URL $USERDIR/$APP
+fi

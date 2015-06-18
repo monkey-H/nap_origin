@@ -1,0 +1,8 @@
+#!/bin/bash
+set -x 
+i="1"
+while [ -z "$(echo $1 | cut -d "{" -f $i)" ]
+do
+	echo $1 | cut -d "{" -f $i | grep } | sed "s/}[a-z A-Z]*//g"
+	i=$[$i+1]
+done
