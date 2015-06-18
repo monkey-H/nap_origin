@@ -1,8 +1,8 @@
 #!/bin/bash
 set -x
-USERAPPDIR=/home/nop/apps
-NAPDIR=/home/nop/nap
-SERDIR=/home/nop/services
+USERAPPDIR=/home/nap/apps
+NAPDIR=/home/nap/nap
+SERDIR=/home/nap/services
 args=$*
 case $1 in
 	#something I did before and will be used after

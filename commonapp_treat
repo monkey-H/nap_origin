@@ -4,10 +4,10 @@ set -x
 APP=$1
 username=$(echo $1 | cut -d "_" -f 1)
 PARAM=$2
-APPDIR=/home/nop/apps
-SERDIR=/home/nop/services
+APPDIR=/home/nap/apps
+SERDIR=/home/nap/services
 USERSERDIR=$SERDIR/$username/$APP
-NAPDIR=/home/nop/nap
+NAPDIR=/home/nap/nap
 
 [ -d $APPDIR/$username ] || (mkdir $APPDIR/$username)
 

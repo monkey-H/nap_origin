@@ -5,8 +5,8 @@ APP=$1
 
 username=$(echo $1 | cut -d "_" -f 1)
 
-USERAPPDIR=/home/nop/apps/$username/$APP
-NAPDIR=/home/nop/nap
+USERAPPDIR=/home/nap/apps/$username/$APP
+NAPDIR=/home/nap/nap
 
 if [ ! -f $USERAPPDIR/Dockerfile ]; then
         if [ -f $USERAPPDIR/pom.xml ]; then
