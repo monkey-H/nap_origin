@@ -1,5 +1,4 @@
 #!/bin/bash
-set -x
 
 APP=$1
 username=$(echo $1 | cut -d "_" -f 1)
@@ -9,6 +8,7 @@ SERDIR=/home/nap/services
 USERSERDIR=$SERDIR/$username/$APP
 NAPDIR=/home/nap/nap
 
+[ -d $APPDIR ] || (mkdir $APPDIR)
 [ -d $APPDIR/$username ] || (mkdir $APPDIR/$username)
 
 num="$(ls $APPDIR/$username | grep $APP | wc -l)"

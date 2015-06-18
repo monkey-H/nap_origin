@@ -1,5 +1,4 @@
 #!/bin/bash
-set -x
 USERAPPDIR=/home/nap/apps
 NAPDIR=/home/nap/nap
 SERDIR=/home/nap/services
@@ -25,8 +24,7 @@ case $1 in
 
 	#list services under this user
 	list_services)
-		username=$(echo $2 | cut -d "_" -f 1)
-		echo "$(ls $SERDIR/$username)" 
+		[ -d $SERDIR/$2 ] && echo "$(ls $SERDIR/$2)" 
 	;;
 
 	#get the url of the service
@@ -38,12 +36,12 @@ case $1 in
 
 	#get instance number of the service
 	get_instances_num)
-		fleetctl list-units | grep "\<${2}" | wc -l
+		fleetctl list-units | grep "\<${2}_" | wc -l
 	;;
 
 	#list instances of a service
 	list_instances)
-		fleetctl list-units | grep "\<$2"
+		fleetctl list-units | grep "\<$2_"
 	;;
 
 	#get port of an instance
