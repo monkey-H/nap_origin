@@ -1,5 +1,4 @@
 #!/bin/bash
-set -x
 
 APP=$1
 URL=$2

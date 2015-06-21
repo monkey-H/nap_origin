@@ -1,4 +1,5 @@
 #!/bin/bash
+set -x
 
 SERDIR=/home/nap/services
 APP=$1
@@ -6,19 +7,31 @@ APPDIR=/home/nap/apps
 username=$(echo $APP | cut -d "_" -f 1)
 NAPDIR=/home/nap/nap
 
-i="1"
-while [ ! -z "$(grep "command:" $SERDIR/$username/$APP/profile | cut -d "{" -f $i)" ]
+if [ -f $SERDIR/$username/$APP/mpi.xml ]; then
+	filename="$SERDIR/$username/$APP/mpi.xml"
+elif [ -f $SERDIR/$username/$APP/profile ]; then
+	filename="$SERDIR/$username/$APP/profile"
+else
+	filename="$SERDIR/$username/$APP/Dockerfile"
+fi
+
+while read line
 do
-	arg="$(grep "command:" $SERDIR/$username/$1/profile | cut -d "{" -f $i | grep "}" | sed "s/}[^}]*//g")"
-	if [ ! -z $arg ]; then
-		if [ -z $argstr ]; then
-			argstr="$arg"
-		else
-			argstr="${argstr},${arg}"
+	i="2"
+	while [ ! -z "$(echo $line | cut -d "{" -f $i | grep "}")" ]
+	do
+		arg="$(echo $line | cut -d "{" -f $i | grep "}" | sed "s/}[^}]*//g")"
+		if [ ! -z $arg ]; then
+			if [ -z $argstr ]; then
+				argstr="$arg"
+			else
+				argstr="${argstr},${arg}"
+			fi
 		fi
-	fi
-	i=$[$i+1]
-done
+		i=$[$i+1]
+	done
+done < "$filename"
+
 if [ -z $argstr ]; then
 	[ -d $APPDIR ] || (mkdir $APPDIR)
 	[ -d $APPDIR/$username ] || (mkdir $APPDIR/$username)

@@ -19,29 +19,26 @@ USERAPPDIR=$APPDIR/$username/${APP}_$num
 
 cp -r $USERSERDIR/* $USERAPPDIR
 
-sudo rm $USERAPPDIR/run
+[ -f $USERAPPDIR/run ] && (sudo rm $USERAPPDIR/run)
 
-while read line; do
-	key=$(echo $line | cut -f 1 -d ' ')
-	if [ "$key" = "command:" ]; then
-		i="1"
-		argstr="$($NAPDIR/get_parameters_treat $APP)"
-		while [ ! -z "$(echo $PARAM | cut -d "," -f $i)" ]
-		do
-			name="{$(echo $argstr | cut -d "," -f $i)}"
-			value="$(echo $PARAM | cut -d "," -f $i)"
-			if [ -z "$newline" ]; then
-				newline="$(echo ${line/$name/$value} )"
-			else
-				newline="$(echo ${newline/$name/$value} )"
-			fi
-			i=$[$i+1]
-		done
-		echo $newline >> $USERAPPDIR/run
-	else
-		echo $line >> $USERAPPDIR/run
-	fi
-done < $USERAPPDIR/profile
+argstr="$($NAPDIR/get_parameters_treat $APP)"
+
+context="$(cat $USERAPPDIR/profile)"
+
+i="1"
+while [ ! -z "$(echo $PARAM | cut -d "," -f $i)" ]
+do
+	name="{$(echo $argstr | cut -d "," -f $i)}"
+        value="$(echo $PARAM | cut -d "," -f $i)"
+       	if [ -z "$newcontext" ]; then
+        	newcontext=${context/$name/$value}
+        else
+        	newcontext=${newcontext/$name/$value}
+        fi
+        i=$[$i+1]
+done
+
+echo "$newcontext" > $USERAPPDIR/run
 
 mv $USERAPPDIR/run $USERAPPDIR/profile
 

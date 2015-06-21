@@ -1,0 +1,168 @@
+#!/bin/bash
+set -x
+
+APP=$1
+username=$(echo $APP | cut -d "_" -f 1)
+USERAPPDIR=/home/nap/apps/$username/$APP
+WORKDIR=/etc/systemd/system
+REGISTRY="docker.iwanna.xyz:5000/hmonkey"
+
+touch $USERAPPDIR/Dockerfile
+sudo chmod o+w $USERAPPDIR/Dockerfile
+
+sudo touch $WORKDIR/image_${APP}.service
+sudo chmod o+w $WORKDIR/image_${APP}.service
+SLAVES_IMAGE="${WORKDIR}/image_${APP}.service"
+
+sudo touch $WORKDIR/${APP}_slaves@.service
+sudo chmod o+w $WORKDIR/${APP}_slaves@.service
+SLAVE_CONTAINERS="$WORKDIR/${APP}_slaves@.service"
+
+sudo touch $WORKDIR/discovery_${APP}@.service
+sudo chmod o+w $WORKDIR/discovery_${APP}@.service
+DISCOVERY="${WORKDIR}/discovery_${APP}@.service"
+
+sudo touch $WORKDIR/${APP}_master.service
+MASTER_CONTAINER="${WORKDIR}/${APP}_master.service"
+sudo chmod o+w $MASTER_CONTAINER
+
+while read line; do
+        key=$(echo $line | cut -f 1 -d ' ')
+        str=""
+        value=$(echo ${line/$key/$str})
+        case $key in
+                build:)
+                        MPICC=$value
+                ;;
+                run:)
+                        MPIRUN=$value 
+                ;;
+                *)
+                        echo "other settings"
+        esac
+done < $USERAPPDIR/mpi.xml
+
+cat > $USERAPPDIR/Dockerfile <<EOF
+FROM docker.iwanna.xyz:5000/hmonkey/openmpi
+MAINTAINER hmonkey <5681713@qq.com>
+COPY src /app
+WORKDIR /app
+RUN $MPICC
+EOF
+
+cat > ${SLAVES_IMAGE} <<EOF
+[Unit]
+Description=images
+Requires=docker.service
+After=docker.service
+
+[Service]
+TimeoutStartSec=900m
+ExecStartPre=/usr/bin/docker build -t $REGISTRY/${APP}_image $USERAPPDIR
+ExecStart=/usr/bin/docker push $REGISTRY/${APP}_image
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
+
+cd $WORKDIR
+sudo systemctl enable image_${APP}.service
+sudo systemctl start image_${APP}.service
+
+cat > ${SLAVE_CONTAINERS} <<EOF
+[Unit]
+Description=slave containers
+Requires=docker.service
+After=docker.service
+
+[Service]
+TimeoutStartSec=900m
+ExecStartPre=-/usr/bin/docker stop ${APP}_slave%i
+ExecStartPre=-/usr/bin/docker rm ${APP}_slave%i
+ExecStartPre=-/usr/bin/docker pull $REGISTRY/${APP}_image
+ExecStart=/usr/bin/docker run -P --name ${APP}_slave%i $REGISTRY/${APP}_image /usr/sbin/sshd -D
+ExecStop=/usr/bin/docker stop ${APP}_slave%i
+ExecStopPost=-/usr/bin/docker rm ${APP}_slave%i
+
+EOF
+
+fleetctl destroy ${SLAVE_CONTAINERS}
+fleetctl submit ${SLAVE_CONTAINERS}
+
+i="2"
+HOSTS=1
+while [ ! -z "$(echo $MPIRUN | cut -d "-" -f $i)" ]
+do
+	if [ "$(echo $MPIRUN | cut -d "-" -f $i | cut -d " " -f 1)" = "n" ]; then
+		HOSTS="$(echo $MPIRUN | cut -d "-" -f $i | cut -d " " -f 2)"
+	fi
+	i=$[$i+1]
+done
+
+for ((i=1; i<=$HOSTS; ++i))
+do
+	fleetctl destroy ${APP}_slaves@$i.service > /dev/null
+	fleetctl start ${APP}_slaves@$i.service > /dev/null
+done
+
+cat > ${DISCOVERY} << EOF
+[Unit]
+Description=${APP}_discovery
+BindsTo=${APP}_slaves@%i.service
+After=${APP}_slaves@%i.service
+
+[Service]
+ExecStart=/bin/sh -c "while true; do appip=\$(docker inspect --format='{{.NetworkSettings.IPAddress}}' ${APP}_slave%i); etcdctl set /services/mpi/$APP/slaves/slave%i \$appip --ttl 60; sleep 10; done"
+ExecStop=/usr/bin/etcdctl rm /services/mpi/$APP/slaves/slave%i
+
+[X-Fleet]
+MachineOf=${APP}_slaves@%i.service
+EOF
+
+fleetctl destroy ${DISCOVERY}
+fleetctl submit ${DISCOVERY}
+
+for ((i=1; i<=$HOSTS; ++i))
+do
+        fleetctl destroy discovery_${APP}@$i.service > /dev/null
+        fleetctl start discovery_${APP}@$i.service > /dev/null
+done
+
+sleep 20 
+
+HOSTLIST="--host $(etcdctl get services/mpi/$APP/slaves/slave1)"
+for ((i=2; i<=$HOSTS; ++i))
+do
+	HOST=$(etcdctl get services/mpi/$APP/slaves/slave$i)
+	HOSTLIST="${HOSTLIST},${HOST}"
+done
+
+BEFORE="-n $HOSTS"
+MPIRUN=${MPIRUN/$BEFORE/$HOSTLIST}
+
+cat > ${MASTER_CONTAINER} <<EOF
+[Unit]
+Description=master container
+Requires=docker.service
+After=docker.service
+
+[Service]
+TimeoutStartSec=900m
+ExecStartPre=-/usr/bin/docker stop ${APP}_master
+ExecStartPre=-/usr/bin/docker rm ${APP}_master
+ExecStartPre=-/usr/bin/docker pull $REGISTRY/${APP}_image
+ExecStart=/usr/bin/docker run -P --name ${APP}_master $REGISTRY/${APP}_image /bin/bash -c "service ssh start && cd /app && $MPIRUN"
+ExecStartPost=-/usr/bin/etcdctl set services/mpi/$APP/master \$(docker inspect --format='{{.NetworkSettings.IPAddress}}' ${APP}_master)
+ExecStop=/usr/bin/docker stop ${APP}_master
+ExecStopPost=-/usr/bin/docker rm ${APP}_master
+ExecStopPost=-/usr/bin/etcdctl rm services/mpi/$APP/master
+
+EOF
+
+cd $WORKDIR
+fleetctl destroy ${APP}_master.service
+fleetctl submit ${APP}_master.service
+fleetctl start ${APP}_master.service
+
+
