@@ -58,7 +58,7 @@ case $1 in
 
 	#get the journal of an instance
 	get_journal)
-		sudo fleetctl journal $2
+		fleetctl journal $2
 	;;
 
 	#stop an app
@@ -74,12 +74,15 @@ case $1 in
 	#get the start command of an instance
 	cat_app)
 		username=$(echo $2 | cut -d "_" -f 1)
-		if [ -f $USERAPPDIR/$username/$2/mpi.xml ]; then
-			cat $USERAPPDIR/$username/$2/mpi.xml
-		elif [ -f $USERAPPDIR/$username/$2/profile ]; then
-			cat $USERAPPDIR/$username/$2/profile
+		appname=$(echo $2 | cut -d "_" -f 2)
+		num=$(echo $2 | cut -d "_" -f 3)
+		app="${username}_${appname}_${num}"
+		if [ -f $USERAPPDIR/$username/$app/mpi.xml ]; then
+			cat $USERAPPDIR/$username/$app/mpi.xml
+		elif [ -f $USERAPPDIR/$username/$app/profile ]; then
+			cat $USERAPPDIR/$username/$app/profile
 		else
-			cat $USERAPPDIR/$username/$2/Dockerfile
+			cat $USERAPPDIR/$username/$app/Dockerfile
 		fi
 	;;
 

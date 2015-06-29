@@ -23,23 +23,37 @@ cp -r $USERSERDIR/* $USERAPPDIR
 
 argstr="$($NAPDIR/get_parameters_treat $APP)"
 
-context="$(cat $USERAPPDIR/profile)"
+if [ -f $USERAPPDIR/mpi.xml ]; then
+	context="$(cat $USERAPPDIR/mpi.xml)"
+elif [ -f $USERAPPDIR/profile ]; then
+	context="$(cat $USERAPPDIR/profile)"
+else
+	context="$(cat $USERAPPDIR/Dockerfile)"
+fi
 
-i="1"
-while [ ! -z "$(echo $PARAM | cut -d "," -f $i)" ]
-do
-	name="{$(echo $argstr | cut -d "," -f $i)}"
-        value="$(echo $PARAM | cut -d "," -f $i)"
-       	if [ -z "$newcontext" ]; then
-        	newcontext=${context/$name/$value}
-        else
+if [ -z $(echo $PARAM | grep ',') ]; then
+	name="{$(echo $argstr | cut -d "," -f 1)}"
+	value="$(echo $PARAM | cut -d "," -f 1)"
+	newcontext=${context/$name/$value}
+else
+	i="1"
+	while [ ! -z "$(echo $PARAM | cut -d "," -f $i)" ]
+	do
+		name="{$(echo $argstr | cut -d "," -f $i)}"
+       		value="$(echo $PARAM | cut -d "," -f $i)"
         	newcontext=${newcontext/$name/$value}
-        fi
-        i=$[$i+1]
-done
+        	i=$[$i+1]
+	done
+fi
 
 echo "$newcontext" > $USERAPPDIR/run
 
-mv $USERAPPDIR/run $USERAPPDIR/profile
+if [ -f $USERAPPDIR/mpi.xml ]; then
+        mv $USERAPPDIR/run $USERAPPDIR/mpi.xml
+elif [ -f $USERAPPDIR/profile ]; then
+        mv $USERAPPDIR/run $USERAPPDIR/profile
+else
+        mv $USERAPPDIR/run $USERAPPDIR/Dockerfile
+fi
 
 $NAPDIR/submit_treat ${APP}_$num
