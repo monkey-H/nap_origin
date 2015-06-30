@@ -103,4 +103,9 @@ case $1 in
 		shift 1
 		$NAPDIR/mpiapp_treat $*
 	;;
+	#get images
+	get_images)
+		username=$(echo $2 | cut -d "_" -f 1)
+		docker images | grep $username
+	;;
 esac
