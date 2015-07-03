@@ -25,21 +25,27 @@ argstr="$($NAPDIR/get_parameters_treat $APP)"
 
 if [ -f $USERAPPDIR/mpi.xml ]; then
 	context="$(cat $USERAPPDIR/mpi.xml)"
+elif [ -f $USERAPPDIR/mapreduce.xml ]; then
+	context="$(cat $USERAPPDIR/mapreduce.xml)"
 elif [ -f $USERAPPDIR/profile ]; then
 	context="$(cat $USERAPPDIR/profile)"
 else
 	context="$(cat $USERAPPDIR/Dockerfile)"
 fi
 
-if [ -z $(echo $PARAM | grep ',') ]; then
-	name="{$(echo $argstr | cut -d "," -f 1)}"
+newcontext=$context
+
+if [ -z "$PARAM" ]; then
+	newcontext=$context
+elif [ -z "$(echo $PARAM | grep ',')" ]; then
+	name="{$(echo $argstr | cut -d "#" -f 2)}"
 	value="$(echo $PARAM | cut -d "," -f 1)"
 	newcontext=${context/$name/$value}
 else
 	i="1"
 	while [ ! -z "$(echo $PARAM | cut -d "," -f $i)" ]
 	do
-		name="{$(echo $argstr | cut -d "," -f $i)}"
+		name="{$(echo $argstr | cut -d "#" -f $[$i+1])}"
        		value="$(echo $PARAM | cut -d "," -f $i)"
         	newcontext=${newcontext/$name/$value}
         	i=$[$i+1]
@@ -50,6 +56,8 @@ echo "$newcontext" > $USERAPPDIR/run
 
 if [ -f $USERAPPDIR/mpi.xml ]; then
         mv $USERAPPDIR/run $USERAPPDIR/mpi.xml
+elif [ -f $USERAPPDIR/mapreduce.xml ]; then
+	mv $USERAPPDIR/run $USERAPPDIR/mapreduce.xml
 elif [ -f $USERAPPDIR/profile ]; then
         mv $USERAPPDIR/run $USERAPPDIR/profile
 else

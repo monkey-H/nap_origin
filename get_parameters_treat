@@ -8,11 +8,15 @@ NAPDIR=/home/nap/nap
 
 if [ -f $SERDIR/$username/$APP/mpi.xml ]; then
 	filename="$SERDIR/$username/$APP/mpi.xml"
+elif [ -f $SERDIR/$username/$APP/mapreduce.xml ]; then
+	filename="$SERDIR/$username/$APP/mapreduce.xml"
 elif [ -f $SERDIR/$username/$APP/profile ]; then
 	filename="$SERDIR/$username/$APP/profile"
 else
 	filename="$SERDIR/$username/$APP/Dockerfile"
 fi
+
+argstr="$(cat $filename)"
 
 while read line
 do
@@ -21,31 +25,10 @@ do
 	do
 		arg="$(echo $line | cut -d "{" -f $i | grep "}" | sed "s/}[^}]*//g")"
 		if [ ! -z $arg ]; then
-			if [ -z $argstr ]; then
-				argstr="$arg"
-			else
-				argstr="${argstr},${arg}"
-			fi
+			argstr="${argstr}#${arg}"
 		fi
 		i=$[$i+1]
 	done
 done < "$filename"
 
-if [ -z $argstr ]; then
-	[ -d $APPDIR ] || (mkdir $APPDIR)
-	[ -d $APPDIR/$username ] || (mkdir $APPDIR/$username)
-
-	num="$(ls $APPDIR/$username | grep $APP | wc -l)"
-	num=$[$num+1]
-
-	mkdir $APPDIR/$username/${APP}_$num
-	USERAPPDIR=$APPDIR/$username/${APP}_$num
-	USERSERDIR=/home/nap/services/$username/$APP
-
-	cp -r $USERSERDIR/* $USERAPPDIR	
-	
-	$NAPDIR/submit_treat ${APP}_$num
-
-else
-	echo $argstr
-fi
+echo $argstr

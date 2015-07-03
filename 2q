@@ -242,7 +242,7 @@ COPY run /app/run
 EOF
 
 docker build -t replace $USERAPPDIR/replace
-sleep $[100*$[${HOSTS}+1]]
+sleep $[60*$[${HOSTS}+1]]
 docker build -t run_master $USERAPPDIR/run_master
 docker run -d replace /bin/bash -c "sh /app/run"
 docker run -d run_master /bin/bash -c "sh /app/run"

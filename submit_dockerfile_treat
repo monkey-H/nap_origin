@@ -63,8 +63,8 @@ BindsTo=${APP}.service
 After=${APP}.service
 
 [Service]
-ExecStart=/bin/sh -c "while true; do appport=\$(docker inspect --format='{{range \$p, \$conf := .NetworkSettings.Ports}}{{(index \$conf 0).HostPort}}{{end}}' $APP); etcdctl set /services/port/$username/$appname \$appport  --ttl 60; sleep 30; done"
-ExecStop=/usr/bin/etcdctl rm /services/port/$username/$appname
+ExecStart=/bin/sh -c "while true; do appport=\$(docker inspect --format='{{range \$p, \$conf := .NetworkSettings.Ports}}{{(index \$conf 0).HostPort}}{{end}}' $APP); etcdctl set /services/port/$APP \$appport  --ttl 60; sleep 10; done"
+ExecStop=/usr/bin/etcdctl rm /services/port/$APP
 
 [X-Fleet]
 MachineOf=${APP}.service
@@ -73,15 +73,15 @@ EOF
 #buid and push
 
 cd $WORKDIR
-sudo systemctl enable build_${APP}
-sudo systemctl start build_${APP}
+sudo systemctl enable build_${APP} &> /dev/null
+sudo systemctl start build_${APP} > /dev/null
 
 #start app unit and discovery unit
 
-fleetctl destroy ${APP}.service
-fleetctl destroy ${APP}_discovery.service
+fleetctl destroy ${APP}.service > /dev/null
+fleetctl destroy ${APP}_discovery.service > /dev/null
 
 fleetctl submit $SERVICE $DISCOVERY
 
-fleetctl start $SERVICE
-fleetctl start $DISCOVERY
+fleetctl start $SERVICE > /dev/null
+fleetctl start $DISCOVERY > /dev/null

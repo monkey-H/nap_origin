@@ -51,9 +51,32 @@ case $1 in
 
 	#get port of an instance
 	get_port)
-		username=$(echo $2 | cut -d "_" -f 1)
-                appname=$(echo $2 | cut -d "_" -f 2)
-		etcdctl get /services/port/$username/$appname
+		if [ -z "$(echo $2 | cut -d '_' -f 4)" ]; then
+			if [ -z "$(etcdctl get /services/port/$2 2> /dev/null)" ]; then
+				echo "-"
+			else
+				etcdctl get /services/port/$2
+			fi
+		else 
+			id=$(echo $2 | cut -d "@" -f 2)
+			username=$(echo $2 | cut -d "_" -f 1)
+              		appname=$(echo $2 | cut -d "_" -f 2)
+			appid=$(echo $2 | cut -d "_" -f 3)
+			appkind=$(echo $2 | cut -d "_" -f 4 | cut -d "@" -f 1)
+			if [ "${appkind}" = "master" ]; then
+				if [ -z "$(etcdctl get /services/port/${username}_${appname}_${appid}/master 2> /dev/null)" ]; then
+					echo "-"
+				else
+					etcdctl get /services/port/${username}_${appname}_${appid}/master
+				fi
+			else
+				if [ -z "$(etcdctl get /services/port/${username}_${appname}_${appid}/slaves/slave${id} 2> /dev/null)" ]; then
+					echo "-"
+				else
+					etcdctl get /services/port/${username}_${appname}_${appid}/slaves/slave${id}
+				fi
+			fi
+		fi
 	;;
 
 	#get the journal of an instance
@@ -71,6 +94,21 @@ case $1 in
 		fleetctl start $2
 	;;
 
+	#destroy an app
+	destroy_app)
+		fleetctl destroy $2
+		docker rmi $(docker imags | grep $2) > /dev/null 2>&1
+	;;
+
+	#destroy an service
+	destroy_service)
+		fleetctl destroy $(fleetctl list-units | grep $2)
+		username=$(echo $2 | cut -d "_" -f 1)
+		sudo rm -r /home/nap/services/$username/$2 > /dev/null 2>&1	
+		sudo rm -r /home/nap/apps/$username/${2}_* > /dev/null 2>&1
+		docker rmi $(docker images | grep ${2}_) > /dev/null 2>&1
+	;;
+
 	#get the start command of an instance
 	cat_app)
 		username=$(echo $2 | cut -d "_" -f 1)
@@ -81,6 +119,8 @@ case $1 in
 			cat $USERAPPDIR/$username/$app/mpi.xml
 		elif [ -f $USERAPPDIR/$username/$app/profile ]; then
 			cat $USERAPPDIR/$username/$app/profile
+		elif [ -f $USERAPPDIR/$username/$app/mapreduce.xml ]; then
+			cat $USERAPPDIR/$username/$app/mapreduce.xml
 		else
 			cat $USERAPPDIR/$username/$app/Dockerfile
 		fi
@@ -98,14 +138,35 @@ case $1 in
 		$NAPDIR/commonapp_treat $*
 	;;
 
-	#start a mpi service
-	start_mpi)
-		shift 1
-		$NAPDIR/mpiapp_treat $*
-	;;
 	#get images
 	get_images)
 		username=$(echo $2 | cut -d "_" -f 1)
-		docker images | grep $username
+		docker images | grep "\<${username}"
 	;;
+
+	#get active containers
+	get_active)
+		username=$(echo $2 | cut -d "_" -f 1)
+		fleetctl list-units | grep "\<$username" | grep "\<active" | wc -l
+	;;
+
+	#get inactive containers
+	get_inactive)
+		username=$(echo $2 | cut -d "_" -f 1)
+                all=$(fleetctl list-units | grep "\<$username" | wc -l)
+		echo $[$all-$(fleetctl list-units | grep "\<$username" | grep "\<active" | wc -l)]
+	;;
+
+	#open a shell
+	open_shell)
+		ip=$(echo $(fleetctl list-units | grep "\<$2\.") | cut -d ' ' -f 2 | cut -d '/' -f 2)
+		port=$($NAPDIR/nap get_port $2)
+		if [ "$port" = "-" ]; then
+			echo '-'
+		else
+			echo ${ip}:${port}
+		fi
+	;;
+
+
 esac

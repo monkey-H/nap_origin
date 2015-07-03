@@ -9,18 +9,16 @@ NAPDIR=/home/nap/nap
 
 if [ ! -f $USERAPPDIR/Dockerfile ]; then
         if [ -f $USERAPPDIR/pom.xml ]; then
-                echo "maven app"
                 $NAPDIR/submit_maven_treat $APP
+	elif [ -f $USERAPPDIR/mapreduce.xml ]; then
+		$NAPDIR/submit_mapreduce_treat $APP
         elif [ -f $USERAPPDIR/mpi.xml ]; then
-                echo "mpi app"
                 $NAPDIR/submit_mpi_treat $APP
         elif [ -f $USERAPPDIR/profile ]; then
-                echo "profile app"
                 $NAPDIR/submit_profile_treat $APP
         else
                 echo "some other kinds of projects"
         fi
 else
-        echo "docker file app"
         $NAPDIR/submit_dockerfile_treat $APP
 fi

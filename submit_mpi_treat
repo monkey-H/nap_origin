@@ -25,6 +25,10 @@ sudo touch $WORKDIR/${APP}_master.service
 MASTER_CONTAINER="${WORKDIR}/${APP}_master.service"
 sudo chmod o+w $MASTER_CONTAINER
 
+sudo touch $WORKDIR/discovery_${APP}_master.service
+DISCOVERY_MASTER="${WORKDIR}/discovery_${APP}_master.service"
+sudo chmod o+w $DISCOVERY_MASTER
+
 while read line; do
         key=$(echo $line | cut -f 1 -d ' ')
         str=""
@@ -43,14 +47,14 @@ done < $USERAPPDIR/mpi.xml
 
 if [ -z "$MPICC" ]; then
 cat > $USERAPPDIR/Dockerfile <<EOF
-FROM docker.iwanna.xyz:5000/hmonkey/mpi4py:v3
+FROM docker.iwanna.xyz:5000/hmonkey/mpi4py:v4
 MAINTAINER hmonkey <5681713@qq.com>
 COPY src /app
 WORKDIR /app
 EOF
 else
 cat > $USERAPPDIR/Dockerfile <<EOF
-FROM docker.iwanna.xyz:5000/hmonkey/mpi4py:v3
+FROM docker.iwanna.xyz:5000/hmonkey/mpi4py:v4
 MAINTAINER hmonkey <5681713@qq.com>
 COPY src /app
 WORKDIR /app
@@ -89,7 +93,7 @@ TimeoutStartSec=900m
 ExecStartPre=-/usr/bin/docker stop ${APP}_slave%i
 ExecStartPre=-/usr/bin/docker rm ${APP}_slave%i
 ExecStartPre=-/usr/bin/docker pull $REGISTRY/${APP}_image
-ExecStart=/usr/bin/docker run -P --name ${APP}_slave%i $REGISTRY/${APP}_image /usr/sbin/sshd -D
+ExecStart=/usr/bin/docker run -P --name ${APP}_slave%i $REGISTRY/${APP}_image /bin/bash -c "service ssh start && cd /tmp && /shellinabox/shellinaboxd" 
 ExecStop=/usr/bin/docker stop ${APP}_slave%i
 ExecStopPost=-/usr/bin/docker rm ${APP}_slave%i
 
@@ -121,8 +125,9 @@ BindsTo=${APP}_slaves@%i.service
 After=${APP}_slaves@%i.service
 
 [Service]
-ExecStart=/bin/sh -c "while true; do appip=\$(docker inspect --format='{{.NetworkSettings.IPAddress}}' ${APP}_slave%i); etcdctl set /services/mpi/$APP/slaves/slave%i \$appip --ttl 60; sleep 10; done"
+ExecStart=/bin/sh -c "while true; do appport=\$(docker inspect --format='{{(index (index .NetworkSettings.Ports \"4200/tcp\") 0).HostPort}}' ${APP}_slave%i); appip=\$(docker inspect --format='{{.NetworkSettings.IPAddress}}' ${APP}_slave%i); etcdctl set /services/port/$APP/slaves/slave%i \$appport --ttl 60; etcdctl set /services/mpi/$APP/slaves/slave%i \$appip --ttl 60; sleep 10; done"
 ExecStop=/usr/bin/etcdctl rm /services/mpi/$APP/slaves/slave%i
+ExecStopPost=/usr/bin/etcdctl rm /services/port/$APP/slaves/slave%i
 
 [X-Fleet]
 MachineOf=${APP}_slaves@%i.service
@@ -160,10 +165,8 @@ TimeoutStartSec=900m
 ExecStartPre=-/usr/bin/docker stop ${APP}_master
 ExecStartPre=-/usr/bin/docker rm ${APP}_master
 ExecStartPre=-/usr/bin/docker pull $REGISTRY/${APP}_image
-ExecStart=/usr/bin/docker run -P --name ${APP}_master $REGISTRY/${APP}_image /bin/bash -c "service ssh start && cd /app && $MPIRUN"
-ExecStartPost=-/usr/bin/etcdctl set services/mpi/$APP/master \$(docker inspect --format='{{.NetworkSettings.IPAddress}}' ${APP}_master)
+ExecStart=/usr/bin/docker run -P --name ${APP}_master $REGISTRY/${APP}_image /bin/bash -c "service ssh start && cd /app && $MPIRUN && cd /tmp && /shellinabox/shellinaboxd"
 ExecStop=/usr/bin/docker stop ${APP}_master
-ExecStopPost=-/usr/bin/etcdctl rm services/mpi/$APP/master
 
 EOF
 
@@ -172,4 +175,19 @@ fleetctl destroy ${APP}_master.service
 fleetctl submit ${APP}_master.service
 fleetctl start ${APP}_master.service
 
+cat > ${DISCOVERY_MASTER} << EOF
+[Unit]
+Description=${APP} discovery master
+BindsTo=${APP}_master.service
+After=${APP}_master.service
 
+[Service]
+ExecStart=/bin/sh -c "while true; do appport=\$(docker inspect --format='{{(index (index .NetworkSettings.Ports "4200/tcp") 0).HostPort}}' ${APP}_master); etcdctl set /services/port/$APP/master \$appport --ttl 60; sleep 10; done"
+ExecStop=/usr/bin/etcdctl rm /services/port/$APP/master
+
+[X-Fleet]
+MachineOf=${APP}_master.service
+EOF
+
+fleetctl destroy ${DISCOVERY_MASTER}
+fleetctl submit ${DISCOVERY_MASTER}
